@@ -1,0 +1,179 @@
+---
+title: "More Examples of Time-Dependent Cox Model"
+author: "Yang Qiao"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(survival)
+library(survminer)
+options(width = 100)
+```
+
+# More Examples of Time-Dependent Cox Model
+
+This page provides two more complicated examples of time-dependent Cox models.
+In both examples, we use simulated data where certain covariates may change during follow-up.
+
+- The 1st example looks at one time-varying covariate (Tvc) together with age and gender;
+- The 2nd example includes two time-varying covariates at the same time.
+
+For each case, we fit a Cox model and show predicted survival curves, comparing situations where the Tvc changed versus remained unchanged.
+
+## Data Generation
+
+We simulate a small cohort with two fixed covariates (`age` and `gender`) and two time-varying covariates:
+
+- Tvc1 (`X1`) tends to **increase** the hazard (risk of the event) when it happens.
+- Tvc2 (`X2`) tends to **decrease** the hazard when it happens.
+- The earlier these occur, the **stronger** their effect on hazard.
+
+What this means
+
+- `event = 1` means we observed the event (e.g., death) by time.
+- `X1t_time` and `X2t_time` are the days when that time-varying covariate changed. If NA, it didn't change before the observed time.
+- We made Tvc1 (`X1`) harmful on average (increases risk) and Tvc2 (`X2`) protective on average (reduces risk), with earlier times having stronger impact.
+
+```{r}
+set.seed(1)
+n <- 50
+time_censor <- 160
+
+data <- tibble(id = paste0("s", 1:n)) %>%
+  mutate(
+    # (1) Add fixed (non time-varying) covariates
+    age = sample(30:80, n(), replace = T),
+    gender = sample(c("M", "F"), n(), replace = T),
+    
+    # (2) Add time-varying covariates X1t and X2t
+    X1t_value = rbinom(n(), 1, 0.6),
+    X1t_time  = if_else(X1t_value == 1, round(runif(n(), time_censor * 0.1, time_censor * 0.6)), NA),
+    X2t_value = rbinom(n(), 1, 0.6),
+    X2t_time  = if_else(X2t_value == 1, round(runif(n(), time_censor * 0.1, time_censor * 0.6)), NA),
+    
+    # (3) Add event-time response from Weibull distribution
+    base_rate   = 0.005 * log10(age),
+    effect_X1   = exp(1 * X1t_value * replace_na(1 - X1t_time / time_censor, 0)),
+    effect_X2   = exp(-1 * X2t_value * replace_na(1 - X2t_time / time_censor, 0)),
+    adj_rate    = base_rate * effect_X1 * effect_X2,
+    true_time   = ceiling(rweibull(n(), shape = 2, scale = 1 / adj_rate)),
+    true_censor = sample((time_censor / 2):time_censor, n(), replace = T),
+    time        = pmin(true_time, true_censor),
+    event       = as.integer(true_time <= true_censor),
+    
+    # (4) Adjust X1t and X2t if after observed time
+    X1t_time   = if_else(!is.na(X1t_time) & X1t_time >= time, NA, X1t_time),
+    X1t_value  = if_else(is.na(X1t_time), 0, X1t_value),
+    X2t_time   = if_else(!is.na(X2t_time) & X2t_time >= time, NA, X2t_time),
+    X2t_value  = if_else(is.na(X2t_time), 0, X2t_value)
+  ) %>%
+  select(id, event, time, age, gender, X1t_value, X1t_time, X2t_value, X2t_time)
+
+# Quick data check
+summary(data)
+print(data, n = Inf)
+```
+
+
+## 1. Cox model with one time-varying covariate and multiple fixed covariates
+```{r}
+# Build start–stop data with a single time-varying covariate tvc (for X1)
+data_td <- data %>%
+  tmerge(., ., id = id, event = event(time, event), tvc = tdc(X1t_time, X1t_value)) %>%
+  mutate(across(tvc, ~ replace_na(., 0)))
+# Fit Cox model: hazard ~ X1(t) + age + gender
+model <- coxph(Surv(tstart, tstop, event) ~ tvc + age + gender, data = data_td, id = id, timefix = F)
+summary(model)
+```
+
+How to read the model
+
+- The coef for `tvc` is the log-hazard ratio when Tvc1 (`X1`) changed.
+- exp(coef) = hazard ratio (HR):
+- HR > 1: higher instantaneous risk (shorter survival) when Tvc1 (`X1`) changed.
+- HR < 1: lower instantaneous risk (longer survival) when Tvc1 (`X1`) changed.
+- p-value: evidence that Tvc1 (`X1`) affects hazard, after adjusting for age/gender.
+
+Below we create two scenarios for prediction: Tvc1 unchanged vs Tvc1 changed at a typical time (its median time), holding age at its median and comparing by gender.
+Note these are model-based survival curves (not raw Kaplan–Meier).
+
+```{r}
+# Create a new data to visualize predicted survival
+data_sim <- data.frame(event = 1:0, Xt_time = c(NA, median(data_td$X1t_time, na.rm = T)), Xt_value = 0:1) %>%
+  # Use the maximum follow-up time for prediction horizon
+  mutate(time = max(data_td$time), .before = 1) %>%
+  # Compare by gender at median age
+  expand_grid(gender = c("M", "F"), age = median(data_td$age)) %>%
+  mutate(id = paste0("s", 1:n()), .before = 1)
+data_sim
+
+# Convert to start–stop format
+data_fit <- data_sim %>%
+  tmerge(., ., id = id, event = event(time, event), tvc = tdc(Xt_time, Xt_value)) %>%
+  mutate(across(tvc, ~ replace_na(., 0)))
+data_fit
+
+# Fit model-based survival for each individual
+fit <- survfit(model, newdata = data_fit, id = id)
+
+# Plot: model-based predicted survival curves
+label <- with(data_sim,
+              sprintf("Gender=%s, Age=%d, Tvc1 %s", gender, age, if_else(Xt_value == 1, paste("changed at time", Xt_time), "unchanged")))
+pp <- ggsurvplot(fit, data_fit, censor = F, legend.labs = label, font.legend = 9)
+pp$plot + labs(color = NULL) + guides(color = guide_legend(nrow = 2))
+```
+
+## 2. Cox model with two time-varying covariates
+```{r}
+# Build start–stop data with two time-varying covariates tvc1 (for X1) and tvc2 (for X2)
+data_td <- data %>%
+  tmerge(., ., id = id, event = event(time, event), tvc1 = tdc(X1t_time, X1t_value), tvc2 = tdc(X2t_time, X2t_value)) %>%
+  mutate(across(c(tvc1, tvc2), ~ replace_na(., 0)))
+# Fit Cox model: hazard ~ X1(t) + X2(t)
+model <- coxph(Surv(tstart, tstop, event) ~ tvc1 + tvc2, data = data_td, id = id, timefix = F)
+summary(model)
+```
+
+How to read the two-tvc model
+
+- `tvc1` HR > 1 means Tvc1 (`X1`) changed increases hazard; HR < 1 means it protects.
+- `tvc2` HR > 1 means Tvc2 (`X2`) changed increases hazard; HR < 1 means it protects.
+- Signs and magnitudes are adjusted for each other.
+
+We compare the four combinations:
+
+- Tvc1 and Tvc2 unchanged.
+- Tvc1 unchanged and Tvc2 changed at its median time.
+- Tvc1 changed at its median time and Tvc2 unchanged.
+- Tvc1 and Tvc2 changed at their own median time.
+
+```{r}
+# Create a new data to visualize predicted survival
+data_sim <- expand_grid(
+  data.frame(X1t_time = c(NA, median(data_td$X1t_time, na.rm = T)), X1t_value = 0:1),
+  data.frame(X2t_time = c(NA, median(data_td$X2t_time, na.rm = T)), X2t_value = 0:1)
+) %>%
+  # Use the maximum follow-up time for prediction horizon
+  mutate(id = paste0("s", 1:n()), time = max(data_td$time),
+         event = c(1L, rep(0L, n() - 1)),
+         .before = 1)
+data_sim
+
+# Convert to start–stop format
+data_fit <- data_sim %>%
+  tmerge(., ., id = id, event = event(time, event), tvc1 = tdc(X1t_time, X1t_value), tvc2 = tdc(X2t_time, X2t_value)) %>%
+  mutate(across(c(tvc1, tvc2), ~ replace_na(., 0)))
+data_fit
+
+# Fit model-based survival for each individual
+fit <- survfit(model, newdata = data_fit, id = id)
+
+# Plot: model-based predicted survival curves
+label <- with(data_sim,
+              sprintf("Tvc1 %s, Tvc2 %s", if_else(X1t_value == 1, paste("changed at time", X1t_time), "unchanged"),
+                      if_else(X2t_value == 1, paste("changed at time", X2t_time), "unchanged")))
+pp <- ggsurvplot(fit, data_fit, censor = F, legend.labs = label, font.legend = 9)
+pp$plot + labs(color = NULL) + guides(color = guide_legend(nrow = 2))
+```

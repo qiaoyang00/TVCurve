@@ -1,0 +1,3 @@
+user	password	permissions	name
+example_admin	password	admin	Administrator
+example_user	password	standard	User
