@@ -9,13 +9,13 @@
 ## │   ├── simu_gridsearch.rds
 ## │   └── More Examples TDCox.Rmd
 ## └── www/
-##     └── TVCurve.mp4
+##     └── TVCurve_1080p.mp4
 ##
 ## Introduction of files:
 ## R files: ui.R, server.R.
 ## R data files: deploy/real_data.rds, deploy/simu_data.rds, deploy/simu_gridsearch.rds.
 ## R markdown file: deploy/More Examples TDCox.Rmd
-## Video: www/TVCurve.mp4
+## Video: www/TVCurve_1080p.mp4
 
 require(shiny)
 require(shinydashboard)

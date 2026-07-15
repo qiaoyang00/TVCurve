@@ -1,20 +1,28 @@
-# macOS
-.DS_Store
-# R
-.Rproj.user
-.Rhistory
-.RData
-.Ruserdata
-# shinyapps.io
+# ===== Global =====
+# Ignore everything
+*
+# Allow directory traversal
+!*/
+# Repository files
+!/.gitignore
+!/README.md
+# R project files
+!/*.Rproj
+/.Rproj.user
+/.Rhistory
+/.RData
+/.Ruserdata
+# shinyapps.io files
 /rsconnect/
-.rscignore
-# other
-/Data/
-/document/
-/old version/
-/test/
+/.rscignore
+# ===== Project =====
+!/deploy/
+!/deploy/**
+!/www/
+!/www/**
 /www/TVCurve_1080p.mp4
-/TimeDep_surv_GoogleAnalytics.html
-/auth.txt
-/Use Cluster.txt
-/*.sh
+!/server.R
+!/ui.R
+!/auth_example.txt
+# ===== OS =====
+.DS_Store
