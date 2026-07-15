@@ -1,23 +1,20 @@
 # macOS
 .DS_Store
-
 # R
 .Rproj.user
 .Rhistory
 .RData
 .Ruserdata
-
 # shinyapps.io
-rsconnect
+/rsconnect/
 .rscignore
-
 # other
-Data
-document
-old version
-test
-www/TVCurve_1080p.mp4
-TimeDep_surv_GoogleAnalytics.html
-auth.txt
-Use Cluster.txt
-*.sh
+/Data/
+/document/
+/old version/
+/test/
+/www/TVCurve_1080p.mp4
+/TimeDep_surv_GoogleAnalytics.html
+/auth.txt
+/Use Cluster.txt
+/*.sh
