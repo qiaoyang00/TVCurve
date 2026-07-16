@@ -21,7 +21,7 @@ The application was developed for the publication:
 
 ## 3. Run Shiny App
 
-The application is available at: qiaoyang00.shinyapps.io/TVCurve/
+The application is available at: https://qiaoyang00.shinyapps.io/TVCurve/
 
 To run locally:
 
