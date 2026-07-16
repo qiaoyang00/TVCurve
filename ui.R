@@ -484,7 +484,8 @@ body <- dashboardBody(
         )},  # reference
         {tabItem(
           "video",
-          tags$video(src = "TVCurve_1080p.mp4", type = "video/mp4", controls = T, width = "100%")
+          if (file.exists("www/TVCurve_1080p.mp4"))
+            tags$video(src = "TVCurve_1080p.mp4", type = "video/mp4", controls = T, width = "100%")
         )}  # video
       )
     )}

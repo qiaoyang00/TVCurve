@@ -46,7 +46,7 @@ options(DT.options = list(pageLength = 25, autoWidth = T, #scrollX = T,
 theme_set(theme_bw() + theme(axis.text = element_text(size = rel(0.8))))
 
 # User authentication
-user_base <- read.table("auth.txt", header = T, sep = "\t")
+user_base <- read.table(if (file.exists("auth.txt")) "auth.txt" else "auth_example.txt", header = T, sep = "\t")
 
 
 # Rounds numeric columns in a data frame to a specified number of digits using either round or signif.
